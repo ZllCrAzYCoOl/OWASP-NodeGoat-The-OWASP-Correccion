@@ -15,7 +15,10 @@ echo "== Hadolint ($HADOLINT_IMAGE) =="
 docker run --rm -i -v "$PWD/.hadolint.yaml:/.config/hadolint.yaml:ro" "$HADOLINT_IMAGE" hadolint -f json - < Dockerfile > "$OUT/hadolint.json" || true
 
 echo "== Construyendo la imagen =="
-docker build -t "nodegoat:$L" .
+docker build -t "nodegoat:$L" . || {
+  echo "::error::docker build falló. Causa habitual: package-lock.json desincronizado con package.json (npm ci). Regenera y commitea el lock."
+  exit 1
+}
 
 echo "== Trivy: imagen ($TRIVY_IMAGE) =="
 docker save "nodegoat:$L" -o "$OUT/imagen.tar"
@@ -24,9 +27,11 @@ docker run --rm --user "$UIDGID" -e TRIVY_CACHE_DIR=/cache -v "$PWD/.trivy-cache
 rm -f "$OUT/imagen.tar"
 
 echo "== Trivy: configuración (Dockerfile, Compose, Terraform) =="
+TRIVY_IGN=()
+[ -f .trivyignore ] && TRIVY_IGN=(--ignorefile /work/.trivyignore)
 docker run --rm --user "$UIDGID" -e TRIVY_CACHE_DIR=/cache -v "$PWD/.trivy-cache:/cache" -v "$PWD:/work" \
   "$TRIVY_IMAGE" config --skip-dirs reports --skip-dirs evidencias --skip-dirs node_modules \
-  --ignorefile /work/.trivyignore --format json --output "/work/$OUT/trivy-config.json" /work || true
+  "${TRIVY_IGN[@]}" --format json --output "/work/$OUT/trivy-config.json" /work || true
 
 echo "== ZAP baseline ($ZAP_IMAGE) =="
 if [ ! -f .env ]; then
@@ -34,7 +39,12 @@ if [ ! -f .env ]; then
   printf 'MONGO_USER=ngadmin\nMONGO_PASSWORD=%s\nCOOKIE_SECRET=%s\nCRYPTO_KEY=%s\n' \
     "$(openssl rand -hex 16)" "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" > .env
 fi
-docker compose -p "$PROJECT" up -d --build --wait
+docker compose -p "$PROJECT" up -d --build --wait || {
+  echo "::error::La aplicación no quedó sana. Últimas líneas del log de web:"
+  docker compose -p "$PROJECT" logs web --tail 60
+  docker compose -p "$PROJECT" down -v
+  exit 1
+}
 # No se usa "npm run db:seed": necesita cross-env y grunt (devDependencies), que la imagen de producción no incluye.
 docker compose -p "$PROJECT" run --rm web node artifacts/db-reset.js || echo "AVISO: falló la siembra de la base de datos (artifacts/db-reset.js)"
 chmod 777 "$OUT"   # el contenedor de ZAP escribe como otro usuario
