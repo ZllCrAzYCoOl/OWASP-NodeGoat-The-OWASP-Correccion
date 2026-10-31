@@ -65,7 +65,11 @@ jobs:
         run: python3 scripts/consolidate.py --dir reports/ci --gate
       - name: Mostrar resumen en la ejecución (sirve para la Figura 3)
         if: always()
-        run: '[ -f reports/ci/resumen.md ] && cat reports/ci/resumen.md >> "$GITHUB_STEP_SUMMARY" || true'
+        run: |
+          for f in resumen.md criticos.md; do
+            [ -f "reports/ci/$f" ] && { cat "reports/ci/$f"; echo; } >> "$GITHUB_STEP_SUMMARY"
+          done
+          true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -74,6 +78,7 @@ jobs:
             reports/ci/resumen.md
             reports/ci/resumen.json
             reports/ci/hallazgos.csv
+            reports/ci/criticos.md
 
   publish:
     name: Publicar imagen en Amazon ECR

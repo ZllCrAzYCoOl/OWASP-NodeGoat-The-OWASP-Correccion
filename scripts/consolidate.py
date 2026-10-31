@@ -254,9 +254,19 @@ def main():
             return 1
         crit = sorted(k for k, v in s["glob"].items() if v == "Crítica")
         if crit:
+            # detalle de cada crítico (herramienta, paquete/archivo y descripción) para poder priorizar
+            det = {}
+            for i in items:
+                if i["level"] == "Crítica" and i["key"] in crit and i["key"] not in det:
+                    det[i["key"]] = i
+            filas = ["# Hallazgos críticos que bloquean el flujo", "",
+                     "| Id | Herramienta | Paquete o ubicación | Detalle |", "|---|---|---|---|"]
             print(f"\n[BLOQUEADO] {len(crit)} hallazgo(s) crítico(s):", file=sys.stderr)
-            for k in crit[:30]:
-                print("  -", k, file=sys.stderr)
+            for k in crit:
+                i = det[k]
+                print(f"  - {k} | {i['tool']} | {i['loc']} | {i['desc']}", file=sys.stderr)
+                filas.append(f"| {k.replace('|', '/')} | {i['tool']} | {i['loc']} | {i['desc'].replace('|', '/')} |")
+            open(os.path.join(a.dir, "criticos.md"), "w", encoding="utf-8").write("\n".join(filas) + "\n")
             return 1
         print("\n[OK] Sin hallazgos críticos.")
     return 0
