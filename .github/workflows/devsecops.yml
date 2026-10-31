@@ -12,6 +12,7 @@ jobs:
   code:
     name: Código (Semgrep, Dependency-Check, Gitleaks)
     runs-on: ubuntu-24.04
+    timeout-minutes: 90          # evita que una descarga lenta de la NVD consuma horas
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,6 +35,7 @@ jobs:
   infra:
     name: Infraestructura (Hadolint, Trivy, ZAP)
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -61,6 +63,9 @@ jobs:
           merge-multiple: true
       - name: Consolidar y aplicar umbral
         run: python3 scripts/consolidate.py --dir reports/ci --gate
+      - name: Mostrar resumen en la ejecución (sirve para la Figura 3)
+        if: always()
+        run: '[ -f reports/ci/resumen.md ] && cat reports/ci/resumen.md >> "$GITHUB_STEP_SUMMARY" || true'
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -12,7 +12,7 @@ mkdir -p "$OUT" .dc-data
 UIDGID="$(id -u):$(id -g)"
 
 echo "== Semgrep ($SEMGREP_IMAGE) =="
-docker run --rm --user "$UIDGID" -v "$PWD:/src" -w /src "$SEMGREP_IMAGE" \
+docker run --rm --user "$UIDGID" -e HOME=/tmp -v "$PWD:/src" -w /src "$SEMGREP_IMAGE" \
   semgrep scan --config p/javascript --config p/nodejs --config p/owasp-top-ten \
   --metrics=off --exclude reports --exclude evidencias --exclude node_modules --exclude terraform \
   --json --output "$OUT/semgrep.json" . || true
@@ -20,10 +20,14 @@ docker run --rm --user "$UIDGID" -v "$PWD:/src" -w /src "$SEMGREP_IMAGE" \
 echo "== OWASP Dependency-Check ($DEPCHECK_IMAGE) =="
 # La clave de la NVD (gratuita) acelera mucho la descarga de la base de datos: https://nvd.nist.gov/developers/request-an-api-key
 NVD_ARG=()
+if [ -z "${NVD_API_KEY:-}" ]; then
+  echo "::warning::NVD_API_KEY no está definida: la descarga de la base de la NVD puede tardar horas. Créala en GitHub > Settings > Secrets and variables > Actions."
+fi
 [ -n "${NVD_API_KEY:-}" ] && NVD_ARG=(--nvdApiKey "$NVD_API_KEY")
 docker run --rm --user "$UIDGID" -v "$PWD:/src" -v "$PWD/.dc-data:/usr/share/dependency-check/data" \
   "$DEPCHECK_IMAGE" --project NodeGoat --scan /src --format JSON --out "/src/$OUT" \
-  --exclude "**/reports/**" --exclude "**/evidencias/**" "${NVD_ARG[@]}" || true
+  --exclude "**/reports/**" --exclude "**/evidencias/**" --exclude "**/node_modules/**" \
+  --exclude "**/.dc-data/**" --exclude "**/.trivy-cache/**" "${NVD_ARG[@]}" || true
 # Dependency-Check escribe dependency-check-report.json; consolidate.py lo busca con ese nombre.
 
 echo "== Gitleaks ($GITLEAKS_IMAGE) =="
