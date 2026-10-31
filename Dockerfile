@@ -1,18 +1,26 @@
-FROM node:12-alpine
-ENV WORKDIR /usr/src/app/
-WORKDIR $WORKDIR
-COPY package*.json $WORKDIR
-RUN npm install --production --no-cache
+# Imagen de NodeGoat endurecida (Módulo 2).
+# Versión fija de la imagen base; usuario sin privilegios; sin secretos; solo el puerto de la app.
+# NodeGoat es antigua: si la app no arranca, prueba otra versión de Node con --build-arg NODE_TAG=...
+ARG NODE_TAG=16.20.2-alpine3.18
+FROM node:${NODE_TAG}
 
-FROM node:12-alpine
-ENV USER node
-ENV WORKDIR /home/$USER/app
-WORKDIR $WORKDIR
-COPY --from=0 /usr/src/app/node_modules node_modules
-RUN chown $USER:$USER $WORKDIR
-COPY --chown=node . $WORKDIR
-# In production environment uncomment the next line
-#RUN chown -R $USER:$USER /home/$USER && chmod -R g-s,o-rx /home/$USER && chmod -R o-wrx $WORKDIR
-# Then all further actions including running the containers should be done under non-root user.
-USER $USER
+ENV NODE_ENV=production
+WORKDIR /app
+
+# Primero solo los manifiestos: aprovecha la caché y deja las dependencias reproducibles (package-lock.json)
+COPY --chown=node:node package*.json ./
+# Tras instalar, se elimina npm y yarn de la imagen final: la app arranca con "node server.js" y no los necesita.
+# El npm que trae la imagen base incluye sus propias dependencias (tar, glob, etc.) con vulnerabilidades conocidas.
+RUN npm ci --omit=dev && npm cache clean --force \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
+              /opt/yarn-v* /usr/local/bin/yarn /usr/local/bin/yarnpkg
+
+COPY --chown=node:node . .
+
+USER node
 EXPOSE 4000
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \
+  CMD wget -q -O /dev/null http://127.0.0.1:4000/login || exit 1
+
+CMD ["node", "server.js"]

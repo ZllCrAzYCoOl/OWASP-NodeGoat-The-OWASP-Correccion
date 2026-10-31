@@ -1,0 +1,105 @@
+name: devsecops
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  code:
+    name: Código (Semgrep, Dependency-Check, Gitleaks)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90          # evita que una descarga lenta de la NVD consuma horas
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # Gitleaks necesita el historial completo
+      - uses: actions/cache@v4
+        with:
+          path: .dc-data           # base de datos de vulnerabilidades de Dependency-Check
+          key: dc-data-${{ github.run_id }}
+          restore-keys: dc-data-
+      - name: Análisis de código
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}   # sin esta clave, Dependency-Check tarda mucho o falla
+        run: bash scripts/scan-code.sh ci
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reports-code
+          path: reports/ci
+
+  infra:
+    name: Infraestructura (Hadolint, Trivy, ZAP)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: .trivy-cache       # base de datos de Trivy
+          key: trivy-db-${{ github.run_id }}
+          restore-keys: trivy-db-
+      - name: Análisis de infraestructura
+        run: bash scripts/scan-infra.sh ci
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reports-infra
+          path: reports/ci
+
+  gate:
+    name: Puerta de calidad (bloquea si hay hallazgos críticos)
+    needs: [code, infra]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: reports/ci
+          merge-multiple: true
+      - name: Consolidar y aplicar umbral
+        run: python3 scripts/consolidate.py --dir reports/ci --gate
+      - name: Mostrar resumen en la ejecución (sirve para la Figura 3)
+        if: always()
+        run: |
+          for f in resumen.md criticos.md; do
+            [ -f "reports/ci/$f" ] && { cat "reports/ci/$f"; echo; } >> "$GITHUB_STEP_SUMMARY"
+          done
+          true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: resumen-consolidado
+          path: |
+            reports/ci/resumen.md
+            reports/ci/resumen.json
+            reports/ci/hallazgos.csv
+            reports/ci/criticos.md
+
+  publish:
+    name: Publicar imagen en Amazon ECR
+    needs: gate
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      id-token: write            # OIDC: sin llaves de AWS guardadas en GitHub
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Construir y publicar (etiqueta = commit)
+        env:
+          REPO: ${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}
+        run: |
+          docker build -t "$REPO:${GITHUB_SHA::12}" .
+          docker push "$REPO:${GITHUB_SHA::12}"
+          echo "Imagen publicada: $REPO:${GITHUB_SHA::12}" >> "$GITHUB_STEP_SUMMARY"
