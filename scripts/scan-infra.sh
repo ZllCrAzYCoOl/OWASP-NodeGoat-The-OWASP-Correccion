@@ -34,7 +34,8 @@ if [ ! -f .env ]; then
   printf 'MONGO_USER=ngadmin\nMONGO_PASSWORD=%s\n' "$(openssl rand -hex 16)" > .env
 fi
 docker compose -p "$PROJECT" up -d --build --wait
-docker compose -p "$PROJECT" run --rm web npm run db:seed || echo "AVISO: revisa el nombre del script de siembra en package.json"
+# No se usa "npm run db:seed": necesita cross-env y grunt (devDependencies), que la imagen de producción no incluye.
+docker compose -p "$PROJECT" run --rm web node artifacts/db-reset.js || echo "AVISO: falló la siembra de la base de datos (artifacts/db-reset.js)"
 chmod 777 "$OUT"   # el contenedor de ZAP escribe como otro usuario
 docker run --rm --network "${PROJECT}_default" -v "$PWD/$OUT:/zap/wrk:rw" "$ZAP_IMAGE" \
   zap-baseline.py -t http://web:4000 -J zap.json -r zap.html -I || true

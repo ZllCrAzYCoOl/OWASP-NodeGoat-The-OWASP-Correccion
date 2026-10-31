@@ -18,6 +18,8 @@ RANK = {l: i for i, l in enumerate(LEVELS)}           # menor = más grave
 CLOUD_RE = re.compile(r"(aws|gcp|gcs|google|azure|alibaba|digitalocean|heroku|ibm|oracle)", re.I)
 CODE_TOOLS = ["semgrep", "dependency-check", "gitleaks"]
 INFRA_TOOLS = ["hadolint", "trivy-image", "trivy-config", "zap"]
+REQUIRED_REPORTS = ["semgrep.json", "dependency-check-report.json", "hadolint.json",
+                    "trivy-image.json", "trivy-config.json", "zap.json"]
 
 
 def load(path):
@@ -244,6 +246,12 @@ def main():
     s = summarize(items, fps)
     print(write_outputs(a.dir, items, s))
     if a.gate:
+        # Un reporte ausente se contaría como "0 hallazgos" y daría un verde falso. gitleaks.json se
+        # omite porque algunas versiones no escriben el archivo cuando no hay secretos.
+        faltan = [n for n in REQUIRED_REPORTS if not os.path.exists(os.path.join(a.dir, n))]
+        if faltan:
+            print(f"\n[BLOQUEADO] Faltan reportes de herramientas: {', '.join(faltan)}", file=sys.stderr)
+            return 1
         crit = sorted(k for k, v in s["glob"].items() if v == "Crítica")
         if crit:
             print(f"\n[BLOQUEADO] {len(crit)} hallazgo(s) crítico(s):", file=sys.stderr)
