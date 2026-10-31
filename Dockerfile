@@ -9,7 +9,11 @@ WORKDIR /app
 
 # Primero solo los manifiestos: aprovecha la caché y deja las dependencias reproducibles (package-lock.json)
 COPY --chown=node:node package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+# Tras instalar, se elimina npm y yarn de la imagen final: la app arranca con "node server.js" y no los necesita.
+# El npm que trae la imagen base incluye sus propias dependencias (tar, glob, etc.) con vulnerabilidades conocidas.
+RUN npm ci --omit=dev && npm cache clean --force \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
+              /opt/yarn-v* /usr/local/bin/yarn /usr/local/bin/yarnpkg
 
 COPY --chown=node:node . .
 

@@ -31,5 +31,10 @@
     "jshint": "^2.13.6"
   },
   "repository": "https://github.com/OWASP/NodejsGoat",
-  "license": "Apache 2.0"
+  "license": "Apache 2.0",
+  "overrides": {
+    "optimist": {
+      "minimist": "^1.2.8"
+    }
+  }
 }
