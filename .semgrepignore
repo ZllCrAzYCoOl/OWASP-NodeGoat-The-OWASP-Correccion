@@ -1,0 +1,6 @@
+node_modules/
+reports/
+evidencias/
+terraform/.terraform/
+.dc-data/
+.trivy-cache/

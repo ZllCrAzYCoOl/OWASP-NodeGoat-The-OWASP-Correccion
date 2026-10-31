@@ -1,6 +1,9 @@
-Dockerfile
-docker-compose.yml
-.dockerignore
 .git
 .github
-.gitignore
+node_modules
+reports
+evidencias
+terraform
+docs
+.env
+*.md

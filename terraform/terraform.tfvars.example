@@ -1,0 +1,7 @@
+# Copia a terraform.tfvars (no se versiona)
+region       = "us-east-1"
+allowed_cidr = "TU.IP.PUBLICA.AQUI/32"   # curl -s https://checkip.amazonaws.com
+github_repo  = "TU_USUARIO/nodegoat-secure"
+image_tag    = "bootstrap"               # cambia por los 12 primeros caracteres del commit al desplegar
+desired_count = 0                        # 0 en el primer apply; 1 cuando la imagen ya esté en ECR
+# create_github_oidc = false             # si tu cuenta ya tiene el proveedor OIDC de GitHub

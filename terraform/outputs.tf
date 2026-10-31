@@ -1,0 +1,11 @@
+output "ecr_repository_url"      { value = aws_ecr_repository.app.repository_url }
+output "ecr_repository_name"     { value = aws_ecr_repository.app.name }
+output "ecs_cluster_name"        { value = aws_ecs_cluster.main.name }
+output "ecs_service_name"        { value = aws_ecs_service.app.name }
+output "task_security_group_id"  { value = aws_security_group.task.id }
+output "kms_key_id"              { value = aws_kms_key.main.key_id }
+output "cloudtrail_name"         { value = aws_cloudtrail.main.name }
+output "log_group_name"          { value = aws_cloudwatch_log_group.app.name }
+output "execution_role_name"     { value = aws_iam_role.execution.name }
+output "task_role_name"          { value = aws_iam_role.task.name }
+output "github_role_arn"         { value = aws_iam_role.github.arn }
