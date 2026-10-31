@@ -11,15 +11,20 @@ permissions:
 jobs:
   code:
     name: Código (Semgrep, Dependency-Check, Gitleaks)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0          # Gitleaks necesita el historial completo
+      - uses: actions/cache@v4
+        with:
+          path: .dc-data           # base de datos de vulnerabilidades de Dependency-Check
+          key: dc-data-${{ github.run_id }}
+          restore-keys: dc-data-
       - name: Análisis de código
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}   # sin esta clave, Dependency-Check tarda mucho o falla
-        run: ./scripts/scan-code.sh ci
+        run: bash scripts/scan-code.sh ci
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -28,11 +33,16 @@ jobs:
 
   infra:
     name: Infraestructura (Hadolint, Trivy, ZAP)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: .trivy-cache       # base de datos de Trivy
+          key: trivy-db-${{ github.run_id }}
+          restore-keys: trivy-db-
       - name: Análisis de infraestructura
-        run: ./scripts/scan-infra.sh ci
+        run: bash scripts/scan-infra.sh ci
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -42,7 +52,7 @@ jobs:
   gate:
     name: Puerta de calidad (bloquea si hay hallazgos críticos)
     needs: [code, infra]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -64,7 +74,7 @@ jobs:
     name: Publicar imagen en Amazon ECR
     needs: gate
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       id-token: write            # OIDC: sin llaves de AWS guardadas en GitHub
       contents: read
