@@ -417,8 +417,12 @@ resource "aws_ecs_task_definition" "app" {
       essential = true
       dependsOn = [{ containerName = "mongo", condition = "HEALTHY" }]
       # Siembra la base al arrancar (laboratorio). Verifica el nombre del script en package.json.
-      command = ["sh", "-c", "npm run db:seed && node server.js"]
+      command = ["sh", "-c", "node artifacts/db-reset.js && node server.js"]
       portMappings = [{ containerPort = 4000, protocol = "tcp" }]
+      secrets = [
+        { name = "COOKIE_SECRET", valueFrom = "${aws_secretsmanager_secret.app.arn}:COOKIE_SECRET::" },
+        { name = "CRYPTO_KEY", valueFrom = "${aws_secretsmanager_secret.app.arn}:CRYPTO_KEY::" }
+      ]
       environment = [
         { name = "NODE_ENV", value = "production" },
         { name = "MONGODB_URI", value = "mongodb://127.0.0.1:27017/nodegoat" }
@@ -429,6 +433,7 @@ resource "aws_ecs_task_definition" "app" {
 }
 
 resource "aws_ecs_service" "app" {
+  depends_on      = [aws_secretsmanager_secret_version.app, aws_iam_role_policy.execution_secrets]
   name            = local.name
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.app.arn
@@ -445,4 +450,48 @@ resource "aws_ecs_service" "app" {
     enable   = true
     rollback = true
   }
+}
+
+# ---------------------------------------------------------------- Secretos de la aplicación (Secrets Manager + KMS)
+# Los valores se generan al aplicar Terraform y no aparecen en la definición de la tarea ni en el código.
+# Nota: quedan en el archivo de estado de Terraform; en un entorno real, el estado va en un backend cifrado (S3 + KMS).
+resource "random_password" "cookie" {
+  length  = 48
+  special = false
+}
+
+resource "random_password" "crypto" {
+  length  = 48
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "app" {
+  name                    = "${local.name}/app"
+  kms_key_id              = aws_kms_key.main.arn
+  recovery_window_in_days = 0 # solo laboratorio: permite destruir y volver a crear sin esperar
+}
+
+resource "aws_secretsmanager_secret_version" "app" {
+  secret_id = aws_secretsmanager_secret.app.id
+  secret_string = jsonencode({
+    COOKIE_SECRET = random_password.cookie.result
+    CRYPTO_KEY    = random_password.crypto.result
+  })
+}
+
+data "aws_iam_policy_document" "execution_secrets" {
+  statement {
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = [aws_secretsmanager_secret.app.arn]
+  }
+  statement {
+    actions   = ["kms:Decrypt"]
+    resources = [aws_kms_key.main.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "execution_secrets" {
+  name   = "leer-secretos-de-la-aplicacion"
+  role   = aws_iam_role.execution.id
+  policy = data.aws_iam_policy_document.execution_secrets.json
 }

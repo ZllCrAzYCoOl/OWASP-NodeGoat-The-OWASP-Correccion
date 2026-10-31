@@ -7,6 +7,7 @@
 // NODE_ENV=production node artifacts/db-reset.js
 
 const { MongoClient } = require("mongodb");
+const bcrypt = require("bcryptjs");
 const { db } = require("../config/config");
 
 const USERS_TO_INSERT = [
@@ -15,8 +16,7 @@ const USERS_TO_INSERT = [
         "userName": "admin",
         "firstName": "Node Goat",
         "lastName": "Admin",
-        "password": "Admin_123",
-        //"password" : "$2a$10$8Zo/1e8KM8QzqOKqbDlYlONBOzukWXrM.IiyzqHRYDXqwB3gzDsba", // Admin_123
+        "password": "Admin_123", // se guarda con hash (ver más abajo)
         "isAdmin": true
     }, {
         "_id": 2,
@@ -25,7 +25,6 @@ const USERS_TO_INSERT = [
         "lastName": "Doe",
         "benefitStartDate": "2030-01-10",
         "password": "User1_123"
-        // "password" : "$2a$10$RNFhiNmt2TTpVO9cqZElb.LQM9e1mzDoggEHufLjAnAKImc6FNE86",// User1_123
     }, {
         "_id": 3,
         "userName": "user2",
@@ -33,7 +32,6 @@ const USERS_TO_INSERT = [
         "lastName": "Smith",
         "benefitStartDate": "2025-11-30",
         "password": "User2_123"
-        //"password" : "$2a$10$Tlx2cNv15M0Aia7wyItjsepeA8Y6PyBYaNdQqvpxkIUlcONf1ZHyq", // User2_123
     }];
 
 const tryDropCollection = (db, name) => {
@@ -59,14 +57,20 @@ const parseResponse = (err, res, comm) => {
 };
 
 
+// Las contraseñas de prueba se guardan con hash bcrypt, igual que en el registro de usuarios
+USERS_TO_INSERT.forEach((user) => {
+    user.password = bcrypt.hashSync(user.password, bcrypt.genSaltSync(10));
+});
+
 // Starting here
-MongoClient.connect(db, (err, db) =>  {
+MongoClient.connect(db, { useUnifiedTopology: true }, (err, client) =>  {
     if (err) {
         console.log("ERROR: connect");
         console.log(JSON.stringify(err));
         process.exit(1);
     }
     console.log("Connected to the database");
+    const db = client.db();
 
     const collectionNames = [
         "users",
@@ -96,7 +100,7 @@ MongoClient.connect(db, (err, db) =>  {
 
         // insert admin and test users
         console.log("Users to insert:");
-        USERS_TO_INSERT.forEach((user) => console.log(JSON.stringify(user)));
+        USERS_TO_INSERT.forEach((user) => console.log(JSON.stringify({ ...user, password: "[HASH]" })));
 
         usersCol.insertMany(USERS_TO_INSERT, (err, data) => {
             const finalAllocations = [];

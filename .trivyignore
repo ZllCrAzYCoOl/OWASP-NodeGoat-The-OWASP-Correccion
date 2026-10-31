@@ -1,0 +1,5 @@
+# Excepciones aceptadas y justificadas (documentarlas en el informe, Tabla B2).
+# Salida HTTPS a 0.0.0.0/0 desde la tarea de Fargate: sin NAT ni VPC endpoints, la tarea necesita llegar a ECR,
+# Docker Hub y CloudWatch por el puerto 443. Mitigación futura: VPC endpoints y subredes privadas.
+aws-vpc-no-public-egress-sgr
+AVD-AWS-0104

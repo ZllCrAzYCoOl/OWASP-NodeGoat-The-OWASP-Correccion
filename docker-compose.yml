@@ -26,6 +26,8 @@ services:
     environment:
       NODE_ENV: production
       MONGODB_URI: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/nodegoat?authSource=admin
+      COOKIE_SECRET: ${COOKIE_SECRET:?defina COOKIE_SECRET en .env}
+      CRYPTO_KEY: ${CRYPTO_KEY:?defina CRYPTO_KEY en .env}
     ports:
       - "127.0.0.1:4000:4000"    # solo accesible desde la propia máquina
     cap_drop: ["ALL"]

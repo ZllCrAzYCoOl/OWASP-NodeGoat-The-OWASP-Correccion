@@ -130,7 +130,9 @@ def collect(d):
     items += parse_hadolint(load(p("hadolint.json")))
     items += parse_trivy(load(p("trivy-image.json")), "trivy-image")
     items += parse_trivy(load(p("trivy-config.json")), "trivy-config")
-    items += parse_zap(load(p("zap.json")))
+    items += parse_zap(load(p("zap.json")))                 # escaneo autenticado
+    if os.path.exists(p("zap-anon.json")):
+        items += parse_zap(load(p("zap-anon.json")))        # escaneo sin sesión (misma clave: cuenta una sola vez)
     return items
 
 

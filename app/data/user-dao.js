@@ -1,4 +1,4 @@
-const bcrypt = require("bcrypt-nodejs");
+const bcrypt = require("bcryptjs");
 
 /* The UserDAO must be constructed with a connected database object */
 function UserDAO(db) {
@@ -22,12 +22,8 @@ function UserDAO(db) {
             firstName,
             lastName,
             benefitStartDate: this.getRandomFutureDate(),
-            password //received from request param
-            /*
-            // Fix for A2-1 - Broken Auth
-            // Stores password  in a safer way using one way encryption and salt hashing
-            password: bcrypt.hashSync(password, bcrypt.genSaltSync())
-            */
+            // Fix A2-1: la contraseña se guarda con hash y sal (bcrypt), nunca en texto plano
+            password: bcrypt.hashSync(password, bcrypt.genSaltSync(10))
         };
 
         // Add email if set
@@ -39,8 +35,6 @@ function UserDAO(db) {
             if (err) {
                 return callback(err, null);
             }
-            console.log(typeof(id));
-
             user._id = id;
             usersCol.insert(user, (err, result) => !err ? callback(null, result.ops[0]) : callback(err, null));
         });
@@ -57,13 +51,8 @@ function UserDAO(db) {
     this.validateLogin = (userName, password, callback) => {
 
         // Helper function to compare passwords
-        const comparePassword = (fromDB, fromUser) => {
-            return fromDB === fromUser;
-            /*
-            // Fix for A2-Broken Auth
-            // compares decrypted password stored in this.addUser()
-            return bcrypt.compareSync(fromDB, fromUser);
-            */
+        const comparePassword = (plain, hash) => {
+            return typeof plain === "string" && typeof hash === "string" && bcrypt.compareSync(plain, hash);
         };
 
         // Callback to pass to MongoDB that validates a user document
@@ -81,12 +70,19 @@ function UserDAO(db) {
                     callback(invalidPasswordError, null);
                 }
             } else {
-                const noSuchUserError = new Error("User: " + user + " does not exist");
+                const noSuchUserError = new Error("User does not exist");
                 // Set an extra field so we can distinguish this from a db error
                 noSuchUserError.noSuchUser = true;
                 callback(noSuchUserError, null);
             }
         };
+
+        // Evita inyección NoSQL con objetos en el cuerpo JSON (por ejemplo {"$ne": ""})
+        if (typeof userName !== "string") {
+            const noSuchUserError = new Error("User does not exist");
+            noSuchUserError.noSuchUser = true;
+            return callback(noSuchUserError, null);
+        }
 
         usersCol.findOne({
             userName: userName
@@ -101,6 +97,9 @@ function UserDAO(db) {
     };
 
     this.getUserByUserName = (userName, callback) => {
+        if (typeof userName !== "string") {
+            return callback(null, null);
+        }
         usersCol.findOne({
             userName: userName
         }, callback);

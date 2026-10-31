@@ -9,13 +9,8 @@ function AllocationsHandler(db) {
     const allocationsDAO = new AllocationsDAO(db);
 
     this.displayAllocations = (req, res, next) => {
-        /*
-        // Fix for A4 Insecure DOR -  take user id from session instead of from URL param
+        // Fix A4 (referencia directa insegura): el usuario sale de la sesión, no del parámetro de la URL
         const { userId } = req.session;
-        */
-        const {
-            userId
-        } = req.params;
         const {
             threshold
         } = req.query;

@@ -1,4 +1,7 @@
 /* The ProfileDAO must be constructed with a connected database object */
+const crypto = require("crypto");
+const config = require("../../config/config");
+
 function ProfileDAO(db) {
 
     "use strict";
@@ -12,32 +15,27 @@ function ProfileDAO(db) {
 
     const users = db.collection("users");
 
-    /* Fix for A6 - Sensitive Data Exposure
+    // Fix A6 (exposición de datos sensibles): SSN, fecha de nacimiento y datos bancarios se guardan cifrados
+    // con AES-256-GCM (cifrado autenticado), IV aleatorio por cada valor y clave tomada de CRYPTO_KEY.
+    const key = crypto.createHash("sha256").update(String(config.cryptoKey)).digest(); // 32 bytes
 
-    // Use crypto module to save sensitive data such as ssn, dob in encrypted format
-    const crypto = require("crypto");
-    const config = require("../../config/config");
-
-    /// Helper method create initialization vector
-    // By default the initialization vector is not secure enough, so we create our own
-    const createIV = () => {
-        // create a random salt for the PBKDF2 function - 16 bytes is the minimum length according to NIST
-        const salt = crypto.randomBytes(16);
-        return crypto.pbkdf2Sync(config.cryptoKey, salt, 100000, 512, "sha512");
+    const encrypt = (plainText) => {
+        const iv = crypto.randomBytes(12);
+        const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+        const encrypted = Buffer.concat([cipher.update(String(plainText), "utf8"), cipher.final()]);
+        return [iv, cipher.getAuthTag(), encrypted].map((part) => part.toString("hex")).join(":");
     };
 
-    // Helper methods to encryt / decrypt
-    const encrypt = (toEncrypt) => {
-        config.iv = createIV();
-        const cipher = crypto.createCipheriv(config.cryptoAlgo, config.cryptoKey, config.iv);
-        return `${cipher.update(toEncrypt, "utf8", "hex")} ${cipher.final("hex")}`;
+    const decrypt = (payload) => {
+        try {
+            const [iv, tag, encrypted] = String(payload).split(":").map((part) => Buffer.from(part, "hex"));
+            const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+            decipher.setAuthTag(tag);
+            return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString("utf8");
+        } catch (error) {
+            return "";
+        }
     };
-
-    const decrypt = (toDecrypt) => {
-        const decipher = crypto.createDecipheriv(config.cryptoAlgo, config.cryptoKey, config.iv);
-        return `${decipher.update(toDecrypt, "hex", "utf8")} ${decipher.final("utf8")}`;
-    };
-    */
 
     this.updateUser = (userId, firstName, lastName, ssn, dob, address, bankAcc, bankRouting, callback) => {
 
@@ -64,21 +62,18 @@ function ProfileDAO(db) {
         if (dob) {
             user.dob = dob;
         }
-        /*
-        // Fix for A7 - Sensitive Data Exposure
-        // Store encrypted ssn and DOB
-        if(ssn) {
-            user.ssn = encrypt(ssn);
-        }
-        if(dob) {
-            user.dob = encrypt(dob);
-        }
-        */
+
+        const stored = { ...user };
+        ["ssn", "dob", "bankAcc", "bankRouting"].forEach((field) => {
+            if (stored[field]) {
+                stored[field] = encrypt(stored[field]);
+            }
+        });
 
         users.update({
                 _id: parseInt(userId)
             }, {
-                $set: user
+                $set: stored
             },
             err => {
                 if (!err) {
@@ -97,12 +92,10 @@ function ProfileDAO(db) {
             },
             (err, user) => {
                 if (err) return callback(err, null);
-                /*
-                // Fix for A6 - Sensitive Data Exposure
-                // Decrypt ssn and DOB values to display to user
-                user.ssn = user.ssn ? decrypt(user.ssn) : "";
-                user.dob = user.dob ? decrypt(user.dob) : "";
-                */
+                if (!user) return callback(new Error("User not found"), null);
+                ["ssn", "dob", "bankAcc", "bankRouting"].forEach((field) => {
+                    user[field] = user[field] ? decrypt(user[field]) : "";
+                });
 
                 callback(null, user);
             }
