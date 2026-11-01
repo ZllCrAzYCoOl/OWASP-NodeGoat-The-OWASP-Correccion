@@ -4,9 +4,8 @@ const express = require("express");
 const favicon = require("serve-favicon");
 const bodyParser = require("body-parser");
 const session = require("express-session");
-const csrf = require("csurf");
-const consolidate = require("consolidate"); // Templating library adapter for Express
-const swig = require("swig");
+const csrf = require("./app/middleware/csrf");
+const nunjucks = require("nunjucks"); // Motor de plantillas mantenido (compatible con la sintaxis usada)
 const MongoClient = require("mongodb").MongoClient; // Driver for connecting to MongoDB
 const http = require("http");
 const marked = require("marked");
@@ -67,28 +66,25 @@ MongoClient.connect(db, { useUnifiedTopology: true }, (err, client) => {
     }));
 
     // Fix A8 (CSRF): token por sesión validado en cada petición que modifica datos
-    app.use(csrf());
+    app.use(csrf);
     app.use((req, res, next) => {
-        res.locals.csrftoken = req.csrfToken();
         res.setHeader("Cache-Control", "no-store");
         next();
     });
 
-    // Register templating engine
-    app.engine(".html", consolidate.swig);
+    // Motor de plantillas Nunjucks con escape automático activado (Fix A3, XSS).
+    // Sustituye a "swig", que no tiene mantenimiento y tiene vulnerabilidades sin parche.
     app.set("view engine", "html");
-    app.set("views", `${__dirname}/app/views`);
+    nunjucks.configure(`${__dirname}/app/views`, {
+        autoescape: true,
+        express: app
+    });
 
     // Fix A9: marked con sanitización activada
     marked.setOptions({
         sanitize: true
     });
     app.locals.marked = marked;
-
-    // Fix A3 (XSS): escape automático de las plantillas activado
-    swig.setDefaults({
-        autoescape: true
-    });
 
     // Application routes
     routes(app, database);
