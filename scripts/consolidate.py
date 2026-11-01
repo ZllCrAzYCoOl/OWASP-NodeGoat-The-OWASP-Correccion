@@ -250,7 +250,11 @@ def main():
     if a.gate:
         # Un reporte ausente se contaría como "0 hallazgos" y daría un verde falso. gitleaks.json se
         # omite porque algunas versiones no escriben el archivo cuando no hay secretos.
-        faltan = [n for n in REQUIRED_REPORTS if not os.path.exists(os.path.join(a.dir, n))]
+        def _presente(n):
+            # El reporte de ZAP se acepta si existe el autenticado (zap.json) o el anónimo (zap-anon.json)
+            candidatos = [n] + (["zap-anon.json"] if n == "zap.json" else [])
+            return any(os.path.exists(os.path.join(a.dir, x)) for x in candidatos)
+        faltan = [n for n in REQUIRED_REPORTS if not _presente(n)]
         if faltan:
             print(f"\n[BLOQUEADO] Faltan reportes de herramientas: {', '.join(faltan)}", file=sys.stderr)
             return 1
