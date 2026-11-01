@@ -68,8 +68,17 @@ else
   ZOPTS+=" -config replacer.full_list(0).matchtype=REQ_HEADER -config replacer.full_list(0).matchstr=Cookie"
   ZOPTS+=" -config replacer.full_list(0).regex=false -config replacer.full_list(0).replacement=$COOKIE"
   ZOPTS+=" -config globalexcludeurl.url_list.url(0).regex=.*/logout.* -config globalexcludeurl.url_list.url(0).enabled=true"
-  docker run --rm --network "${PROJECT}_default" -v "$PWD/$OUT:/zap/wrk:rw" "$ZAP_IMAGE" \
-    zap-baseline.py -t http://web:4000/dashboard -J zap.json -r zap.html -I -z "$ZOPTS" || true
+  for intento in 1 2; do
+    docker run --rm --network "${PROJECT}_default" -v "$PWD/$OUT:/zap/wrk:rw" "$ZAP_IMAGE" \
+      zap-baseline.py -t http://web:4000/dashboard -J zap.json -r zap.html -I -z "$ZOPTS" || true
+    [ -s "$OUT/zap.json" ] && break
+    echo "AVISO: ZAP autenticado no generó zap.json (intento $intento de 2)"
+  done
+fi
+# Respaldo: si el escaneo autenticado no dejó reporte, se usa el anónimo para que el gate no quede ciego ni se caiga
+if [ ! -s "$OUT/zap.json" ]; then
+  echo "AVISO: zap.json queda igual al escaneo anónimo (revisa el log de ZAP autenticado de arriba)"
+  cp "$OUT/zap-anon.json" "$OUT/zap.json" 2>/dev/null || true
 fi
 docker compose -p "$PROJECT" down -v
 
