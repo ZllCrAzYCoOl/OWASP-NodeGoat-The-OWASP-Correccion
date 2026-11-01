@@ -16,7 +16,7 @@ const USERS_TO_INSERT = [
         "userName": "admin",
         "firstName": "Node Goat",
         "lastName": "Admin",
-        "password": "Admin_123", // se guarda con hash (ver más abajo)
+        "password": "   ", // se guarda con hash (ver más abajo)
         "isAdmin": true
     }, {
         "_id": 2,
