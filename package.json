@@ -7,15 +7,13 @@
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.20.3",
-    "consolidate": "^0.16.0",
-    "csurf": "^1.11.0",
     "express": "^4.22.3",
     "express-session": "^1.18.1",
     "marked": "^4.3.0",
     "mongodb": "^3.7.4",
     "needle": "^3.3.1",
-    "serve-favicon": "^2.5.0",
-    "swig": "^1.4.2"
+    "nunjucks": "^3.2.4",
+    "serve-favicon": "^2.5.0"
   },
   "scripts": {
     "start": "node server.js",
@@ -31,10 +29,5 @@
     "jshint": "^2.13.6"
   },
   "repository": "https://github.com/OWASP/NodejsGoat",
-  "license": "Apache 2.0",
-  "overrides": {
-    "optimist": {
-      "minimist": "^1.2.8"
-    }
-  }
+  "license": "Apache 2.0"
 }

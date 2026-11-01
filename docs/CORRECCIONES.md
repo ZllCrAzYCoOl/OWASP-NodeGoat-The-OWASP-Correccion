@@ -17,7 +17,7 @@ Hagan los commits en este orden y uno por fila, para que cada corrección quede 
 | 10 | A5 Configuración | `server.js` | Cookie `sessionId` HttpOnly + SameSite + caducidad, sin `x-powered-by`, cabeceras (CSP, X-Frame-Options, nosniff, Referrer-Policy) | ZAP: desaparecen alertas de cabeceras y cookies |
 | 11 | A6 Datos sensibles | `app/data/profile-dao.js` | SSN, fecha de nacimiento y datos bancarios cifrados con AES-256-GCM (IV aleatorio, clave de `CRYPTO_KEY`) | En Mongo, `ssn` se ve como `hex:hex:hex`; en pantalla se ve en claro |
 | 12 | A7 Control de acceso | `app/routes/index.js` | `/benefits` solo para administradores | `user1` abriendo `/benefits` es redirigido |
-| 13 | A8 CSRF | `server.js`, `app/views/benefits.html`, `app/views/memos.html` | `csurf` activado; token en todos los formularios | Un POST sin `_csrf` devuelve 403 |
+| 13 | A8 CSRF | `server.js`, `app/middleware/csrf.js`, `app/views/benefits.html`, `app/views/memos.html` | middleware propio (`app/middleware/csrf.js`) con token por sesión; token en todos los formularios | Un POST sin `_csrf` devuelve 403 |
 | 14 | A10 Redirección abierta / SSRF | `app/routes/index.js`, `app/routes/research.js` | `/learn` solo acepta HTTPS a hosts permitidos; /research usa una URL base fija y valida el símbolo | `/learn?url=https://evil.com` devuelve 400 |
 | 15 | A9 Componentes | `package.json` (y `package-lock.json`) | Ver abajo | `npm audit --omit=dev`, Dependency-Check y Trivy |
 | 16 | Infraestructura | `docker-compose.yml`, `.env.example`, `terraform/*`, `.trivyignore` | Secretos de la app por entorno / Secrets Manager (KMS); excepción documentada para la salida 443 | Trivy config sin críticos |
@@ -30,7 +30,9 @@ El 90 % de los 23 críticos viene de dos fuentes:
 - **Herramientas de desarrollo de 2016–2019** (`cypress` 3, `mocha` 2, `grunt-*`, `nodemon` 1, `selenium-webdriver`, `zaproxy`, `grunt-retire`): traen `handlebars`, `babel-traverse`, `json-schema`, `growl`, `getobject`, `lodash` 4.17.11. Se retiran porque el análisis de seguridad lo hace ahora el pipeline (Semgrep, Dependency-Check, Gitleaks, Trivy, ZAP). `db:seed` ya no usa Grunt: es `node artifacts/db-reset.js`.
 - **`mongodb` 2.x → 3.7** (trae `bson` ≥ 1.1.4, que corrige CVE-2020-7610), **`marked` 0.3.5 → 4.3**, **`needle` 2.2.4 → 3.x**, **`bcrypt-nodejs` → `bcryptjs`**, y se quitan `underscore` (solo se importaba sin usar), `helmet`, `node-esapi` y `dont-sniff-mimetype` (reemplazados por código propio).
 
-Riesgos que quedan y deben decirse en el informe: `swig` 1.4.2 no tiene mantenimiento (sin versión corregida), la imagen base y `mongo:4.4` están fuera de soporte, y la aplicación se sirve por HTTP (HTTPS requeriría un balanceador con certificado).
+**Plantillas y CSRF:** `swig` (sin mantenimiento; críticas sin parche por `optimist`/`uglify-js`) se reemplaza por `nunjucks`, y `csurf` (archivado, arrastra `cookie` vulnerable) por un middleware propio. Las vistas solo necesitaron tres cambios de sintaxis (`!` → `not`, `||` → `or`, `{{ script | safe }}`). `consolidate` ya no hace falta.
+
+Riesgos que quedan y deben decirse en el informe: la imagen base y `mongo:4.4` están fuera de soporte, y la aplicación se sirve por HTTP (HTTPS requeriría un balanceador con certificado).
 
 Opcional: si no van a usar más las pruebas heredadas, eliminen `Gruntfile.js`, `cypress.json`, `nodemon.json`, `test/` y `.travis.yml` con `git rm`.
 

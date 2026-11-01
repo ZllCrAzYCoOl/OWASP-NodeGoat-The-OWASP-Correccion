@@ -74,7 +74,7 @@
                     <li class="dropdown user-dropdown">
                         <a href="#" class="dropdown-toggle" data-toggle="dropdown"><i class="fa fa-user"></i> {{firstName}} {{lastName}} <b class="caret"></b></a>
                         <ul class="dropdown-menu">
-                            {% if !user.isAdmin %}
+                            {% if not user.isAdmin %}
                             <li><a href="/profile"><i class="fa fa-user"></i> Profile</a>
                             </li>
                             <li class="divider"></li>
@@ -123,7 +123,7 @@
 
     <!-- Load environmental scripts such as live reload -->
     {% for script in environmentalScripts %}
-    {{script}}
+    {{ script | safe }}
     {% endfor %}
 
 </body>
